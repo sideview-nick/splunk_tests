@@ -56,6 +56,25 @@ power_username = usernames[2]
 user_username = usernames[3]
 
 
+#def run_search(search, session_key, app_name, earliest=None, latest=None):
+#    uri = "/servicesNS/-/%s/search/jobs/" % app_name
+#    postargs = {
+#        "search": search,
+#        "exec_mode": "oneshot",
+#        "output_mode": "json"
+#    }
+#    if earliest:
+#        postArgs["earliest_time"] = earliest
+#    if latest:
+#        postArgs["latest_time"] = latest
+#
+#    getargs = {}
+#
+#    return splunk.rest.simpleRequest(
+#        uri, postargs=postargs, getargs=getargs, raiseAllErrors=True,
+#        sessionKey=session_key
+#    )
+
 class InstrumentedTestCase(unittest.TestCase):
     def setUp(self):
         self._started_at = time.time()
@@ -66,6 +85,21 @@ class InstrumentedTestCase(unittest.TestCase):
             print('{} ({}s)'.format(self.id(), round(elapsed, 2)))
 
 
+
+class TestParserEndpoint(InstrumentedTestCase):
+
+    def test_parser_endpoint_smoke(self):
+        getargs = {
+            "q": "search foo bar"
+        }
+        uri = "/servicesNS/nobody/search/search/parser"
+        response, content = splunk.rest.simpleRequest(uri, sessionKey=admin_session_key, method='GET', getargs=getargs, raiseAllErrors=True)
+        self.assertEqual(response["status"], "200", "should get an answer back")
+        #print(content)
+
+        
+
+    
 class CoreSplunkTestCase(InstrumentedTestCase):
     public_name = "unimplemented"
     private_name = "unimplemented"
@@ -340,6 +374,24 @@ class TestSavedSearchREST(CoreSplunkTestCase):
     private_name = "a_private_saved_search"
     public_name = "a_public_saved_search"
 
+
+    def test_counttype_arg(self):
+
+        uri = self.uri % (admin1_username, "")
+        postargs = self.get_post_args(self.private_name)
+        postargs["counttype"] = "Number of events"
+        # splunk has counttype in savedsearches.conf.spec but for this key and a few others, this is illegal in REST
+        with self.assertRaises(splunk.BadRequest):
+            response, content = splunk.rest.simpleRequest(uri, sessionKey=admin_session_key, postargs=postargs, method='POST', raiseAllErrors=True)
+        #silly developer.  you have to know that 
+        postargs["alert_type"] = postargs["counttype"]
+        del postargs["counttype"]
+
+        response, content = splunk.rest.simpleRequest(uri, sessionKey=admin_session_key, postargs=postargs, method='POST', raiseAllErrors=True)
+        #manual clean up is unnecessary because the class already deletes this name for admin1 and admin2
+        #self.delete_thing(admin1_username, self.private_name, admin_session_key)
+
+
     def get_post_args(self, name=False):
         post_args = {
             "search": 'foo | eval bar="%s" | timechart count' % time.time()
@@ -501,7 +553,7 @@ class TestDashboardPanelREST(CoreSplunkTestCase):
             name = "%s-%s" % (self.private_name, usernames[i])
             status, response = self.get_thing(user, name, key)
             receivedEaiUserName = self.get_eai_user_name(response)
-            message = "our own private dashboards should have our name (%s) ss eai:username but instead received %s" % (user, receivedEaiUserName)
+            message = "our own private dashboards should have our name (%s) as eai:username but instead received %s" % (user, receivedEaiUserName)
             self.assertEqual(user, receivedEaiUserName, message)
 
 
@@ -520,40 +572,6 @@ class TestDashboardPanelREST(CoreSplunkTestCase):
 
 
 
-
-
-def run_search(search, session_key, app_name):
-    uri = "/servicesNS/-/%s/search/jobs/" % app_name
-    postargs = {
-        "search": search,
-        "exec_mode": "oneshot",
-        "output_mode": "json"
-    }
-    getargs = {}
-
-    return splunk.rest.simpleRequest(
-        uri, postargs=postargs, getargs=getargs, raiseAllErrors=True,
-        sessionKey=session_key
-    )
-
-# yes this should just be folded into run_search but let's see if it's a stupid idea first.
-def run_search_with_timerange(search, session_key, app_name, earliest, latest):
-    uri = "/servicesNS/-/%s/search/jobs/" % app_name
-    postargs = {
-        "search": search,
-        "exec_mode": "oneshot",
-        "output_mode": "json",
-        "earliest_time": earliest,
-        "latest_time": latest,
-        #"now": now
-    }
-    getargs = {}
-
-    status, response = splunk.rest.simpleRequest(
-        uri, postargs=postargs, getargs=getargs, raiseAllErrors=True,
-        sessionKey=session_key
-    )
-    return status, response
 
 
 
